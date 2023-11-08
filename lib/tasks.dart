@@ -1,8 +1,28 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'main.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({Key? key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: const TaskListScreen(title: 'Task List'),
+    );
+  }
+}
 
 class TaskListScreen extends StatefulWidget {
-  const TaskListScreen({super.key, required this.title});
+  const TaskListScreen({Key? key, required this.title});
   final String title;
 
   @override
@@ -10,15 +30,28 @@ class TaskListScreen extends StatefulWidget {
 }
 
 class _TaskListScreen extends State<TaskListScreen> {
+  FirebaseFirestore firestore = FirebaseFirestore.instance;
+  CollectionReference tasksCollection =
+      FirebaseFirestore.instance.collection('tasks');
+
   List<Task> tasks = [];
 
-  void addTask() {
-    setState(() {
-      tasks.add(Task(
-          title: 'New Task',
-          tileColor:
-              Colors.primaries[Random().nextInt(Colors.primaries.length)]));
-    });
+  Future<void> addTask() async {
+    try {
+      DocumentReference taskReference = await tasksCollection.add({
+        'title': 'New Task',
+        'tileColor':
+            Colors.primaries[Random().nextInt(Colors.primaries.length)].value,
+        'subTasks': []
+      });
+
+      DocumentSnapshot taskSnapshot = await taskReference.get();
+      setState(() {
+        tasks.add(Task.fromSnapshot(taskSnapshot));
+      });
+    } catch (e) {
+      print('Error adding task: $e');
+    }
   }
 
   @override
@@ -61,6 +94,14 @@ class Task {
 
   Task({required this.title, Color? tileColor})
       : tileColor = tileColor ?? Colors.transparent;
+
+  factory Task.fromSnapshot(DocumentSnapshot snapshot) {
+    Map<String, dynamic>? data = snapshot.data() as Map<String, dynamic>?;
+    return Task(
+      title: data?['title'] ?? 'No Title',
+      tileColor: Color(data?['tileColor'] ?? Colors.transparent.value),
+    );
+  }
 }
 
 class TaskList extends StatefulWidget {
@@ -68,10 +109,9 @@ class TaskList extends StatefulWidget {
   final List<Task> tasks;
 
   const TaskList(
-      {super.key, required this.addTaskCallBack, required this.tasks});
+      {Key? key, required this.addTaskCallBack, required this.tasks});
 
   @override
-  // ignore: library_private_types_in_public_api
   _TaskListState createState() => _TaskListState();
 }
 
@@ -102,7 +142,7 @@ class TaskItem extends StatefulWidget {
   final VoidCallback onRemove;
 
   const TaskItem(
-      {super.key,
+      {Key? key,
       required this.title,
       required this.tileColor,
       required this.onRemove});
@@ -114,7 +154,6 @@ class TaskItem extends StatefulWidget {
 class _TaskItemState extends State<TaskItem> {
   Icon checked = const Icon(Icons.check_box_outline_blank_rounded);
   bool isChecked = false;
-
   String status = 'incomplete';
   bool isComplete = false;
 
@@ -165,19 +204,23 @@ class _TaskItemState extends State<TaskItem> {
         child: TextFormField(
           style: const TextStyle(
             color: Color.fromARGB(255, 255, 255, 255),
+            fontSize: 10,
           ),
           initialValue: widget.title,
           maxLines: 3,
           decoration: InputDecoration(
-              border: const OutlineInputBorder(
-                borderSide: BorderSide(color: Colors.white, width: 1),
-                borderRadius: BorderRadius.all(Radius.circular(5)),
-              ),
-              labelText: status,
-              labelStyle: const TextStyle(
-                  color: Color.fromARGB(255, 255, 255, 255), fontSize: 15),
-              contentPadding:
-                  EdgeInsets.symmetric(vertical: 10, horizontal: 10)),
+            border: const OutlineInputBorder(
+              borderSide: BorderSide(color: Colors.white, width: 1),
+              borderRadius: BorderRadius.all(Radius.circular(5)),
+            ),
+            labelText: status,
+            labelStyle: const TextStyle(
+              color: Color.fromARGB(255, 255, 255, 255),
+              fontSize: 15,
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+          ),
         ),
       ),
       trailing: IconButton(
