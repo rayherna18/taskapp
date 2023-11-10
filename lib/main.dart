@@ -101,22 +101,45 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Registration & Login')),
+      appBar: AppBar(
+          title: const Text(
+        'Task Attack',
+        textAlign: TextAlign.center,
+      )),
       body: Padding(
         padding: const EdgeInsets.all(32.0),
         child:
             Column(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+          const Text(
+            'Let\'s get Productive!',
+            style: TextStyle(
+                fontSize: 32,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Roboto',
+                color: Colors.black),
+          ),
           TextField(
             controller: _emailController,
             decoration: const InputDecoration(
               labelText: 'Email',
+              labelStyle: TextStyle(color: Colors.black),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.black),
+              ),
             ),
             cursorColor: Colors.black,
           ),
           TextField(
             controller: _passwordController,
-            decoration: const InputDecoration(labelText: 'Password'),
+            decoration: const InputDecoration(
+              labelText: 'Password',
+              labelStyle: TextStyle(color: Colors.black),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.black),
+              ),
+            ),
             obscureText: true,
+            cursorColor: Colors.black,
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -124,18 +147,22 @@ class _AuthScreenState extends State<AuthScreen> {
               ElevatedButton(
                 onPressed: _register,
                 style: ButtonStyle(
-                  backgroundColor: MaterialStateProperty.all<Color>(
-                      const Color.fromARGB(255, 15, 15, 15)),
-                ),
+                    backgroundColor: MaterialStateProperty.all<Color>(
+                        const Color.fromARGB(255, 15, 15, 15)),
+                    padding: MaterialStateProperty.all<EdgeInsetsGeometry>(
+                      const EdgeInsets.all(32),
+                    )),
                 child: const Text('Register'),
               ),
               const SizedBox(width: 32),
               ElevatedButton(
                 onPressed: _login,
                 style: ButtonStyle(
-                  backgroundColor: MaterialStateProperty.all<Color>(
-                      const Color.fromARGB(255, 15, 15, 15)),
-                ),
+                    backgroundColor: MaterialStateProperty.all<Color>(
+                        const Color.fromARGB(255, 15, 15, 15)),
+                    padding: MaterialStateProperty.all<EdgeInsetsGeometry>(
+                      const EdgeInsets.all(32),
+                    )),
                 child: const Text('Login'),
               ),
             ],

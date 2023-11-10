@@ -64,16 +64,38 @@ class _TaskListScreen extends State<TaskListScreen> {
     try {
       User? user = auth.currentUser;
       if (user != null) {
-        await tasksCollection.add({
-          'userId': user.uid,
-          'title': 'Task Description',
-          'description': '',
-          'status': false,
+        // Optimistic Update
+        Task newTask = Task(
+          id: DateTime.now().toString(), // Use a unique identifier
+          title: 'Task Description',
+          description: '',
+          status: false,
+        );
+
+        setState(() {
+          tasks.add(newTask);
         });
-        fetchTasks(); // Refresh the task list after adding a new task
+
+        // Perform asynchronous Firestore operation
+        DocumentReference newTaskReference = await tasksCollection.add({
+          'userId': user.uid,
+          'title': newTask.title,
+          'description': newTask.description,
+          'status': newTask.status,
+        });
+
+        // Update the task locally with the Firestore-generated ID
+        newTask.id = newTaskReference.id;
+        setState(() {
+          tasks[tasks.indexOf(newTask)] = newTask;
+        });
       }
     } catch (e) {
       print('Error adding task: $e');
+      // Roll back the local state
+      setState(() {
+        tasks.removeLast();
+      });
     }
   }
 
@@ -84,7 +106,7 @@ class _TaskListScreen extends State<TaskListScreen> {
         'description': task.description,
         'status': task.status,
       });
-      fetchTasks(); // Refresh the task list after updating a task
+      await fetchTasks(); // Wait for fetchTasks to complete
     } catch (e) {
       print('Error updating task: $e');
     }
@@ -93,7 +115,7 @@ class _TaskListScreen extends State<TaskListScreen> {
   Future<void> deleteTask(Task task) async {
     try {
       await tasksCollection.doc(task.id).delete();
-      fetchTasks(); // Refresh the task list after deleting a task
+      await fetchTasks();
     } catch (e) {
       print('Error deleting task: $e');
     }
@@ -103,7 +125,7 @@ class _TaskListScreen extends State<TaskListScreen> {
     try {
       await auth.signOut();
       // ignore: use_build_context_synchronously
-      Navigator.of(context).pop(); // Close the current screen
+      Navigator.of(context).pop(); // Goes back to login screen
     } catch (e) {
       print('Error signing out: $e');
     }
@@ -139,7 +161,7 @@ class _TaskListScreen extends State<TaskListScreen> {
                   icon: const Icon(Icons.logout_rounded),
                   color: Colors.black,
                   onPressed: () {
-                    signOut(); // Call the signOut method
+                    signOut();
                   },
                 ),
               ],
@@ -157,7 +179,7 @@ class _TaskListScreen extends State<TaskListScreen> {
 }
 
 class Task {
-  final String id;
+  String id; // Change this to String
   String title;
   final Color tileColor;
   String description;
@@ -172,13 +194,14 @@ class Task {
   }) : tileColor = tileColor ?? Colors.transparent;
 
   factory Task.fromSnapshot(DocumentSnapshot snapshot) {
-    Map<String, dynamic>? data = snapshot.data() as Map<String, dynamic>?;
+    Map<String, dynamic> data = snapshot.data() as Map<String, dynamic>;
+
     return Task(
       id: snapshot.id,
-      title: data?['title'] ?? 'No Title',
-      tileColor: Color(data?['tileColor'] ?? Colors.transparent.value),
-      description: data?['description'] ?? '',
-      status: data?['status'] ?? false,
+      title: data['title'] ?? 'Task Description',
+      tileColor: Color(data['tileColor'] ?? Colors.transparent.value),
+      description: data['description'] ?? '',
+      status: data['status'] ?? false,
     );
   }
 }
@@ -280,7 +303,7 @@ class _TaskItemState extends State<TaskItem> {
         child: TextFormField(
           style: const TextStyle(
             color: Color.fromARGB(255, 19, 19, 19),
-            fontSize: 10,
+            fontSize: 16,
           ),
           controller: descriptionController,
           maxLines: 3,
