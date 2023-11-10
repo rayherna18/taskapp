@@ -1,8 +1,9 @@
-import 'dart:math';
+// ignore_for_file: avoid_print
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'main.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,8 +16,8 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      home: const TaskListScreen(title: 'Task List'),
+    return const MaterialApp(
+      home: TaskListScreen(title: 'Task List'),
     );
   }
 }
@@ -33,24 +34,78 @@ class _TaskListScreen extends State<TaskListScreen> {
   FirebaseFirestore firestore = FirebaseFirestore.instance;
   CollectionReference tasksCollection =
       FirebaseFirestore.instance.collection('tasks');
+  FirebaseAuth auth = FirebaseAuth.instance;
 
   List<Task> tasks = [];
 
+  @override
+  void initState() {
+    super.initState();
+    fetchTasks();
+  }
+
+  Future<void> fetchTasks() async {
+    try {
+      User? user = auth.currentUser;
+      if (user != null) {
+        QuerySnapshot querySnapshot =
+            await tasksCollection.where('userId', isEqualTo: user.uid).get();
+        setState(() {
+          tasks =
+              querySnapshot.docs.map((doc) => Task.fromSnapshot(doc)).toList();
+        });
+      }
+    } catch (e) {
+      print('Error fetching tasks: $e');
+    }
+  }
+
   Future<void> addTask() async {
     try {
-      DocumentReference taskReference = await tasksCollection.add({
-        'title': 'New Task',
-        'tileColor':
-            Colors.primaries[Random().nextInt(Colors.primaries.length)].value,
-        'subTasks': []
-      });
-
-      DocumentSnapshot taskSnapshot = await taskReference.get();
-      setState(() {
-        tasks.add(Task.fromSnapshot(taskSnapshot));
-      });
+      User? user = auth.currentUser;
+      if (user != null) {
+        await tasksCollection.add({
+          'userId': user.uid,
+          'title': 'Task Description',
+          'description': '',
+          'status': false,
+        });
+        fetchTasks(); // Refresh the task list after adding a new task
+      }
     } catch (e) {
       print('Error adding task: $e');
+    }
+  }
+
+  Future<void> updateTask(Task task) async {
+    try {
+      await tasksCollection.doc(task.id).update({
+        'title': task.title,
+        'description': task.description,
+        'status': task.status,
+      });
+      fetchTasks(); // Refresh the task list after updating a task
+    } catch (e) {
+      print('Error updating task: $e');
+    }
+  }
+
+  Future<void> deleteTask(Task task) async {
+    try {
+      await tasksCollection.doc(task.id).delete();
+      fetchTasks(); // Refresh the task list after deleting a task
+    } catch (e) {
+      print('Error deleting task: $e');
+    }
+  }
+
+  Future<void> signOut() async {
+    try {
+      await auth.signOut();
+      // ignore: use_build_context_synchronously
+      Navigator.of(context).pop(); // Close the current screen
+    } catch (e) {
+      print('Error signing out: $e');
     }
   }
 
@@ -69,19 +124,32 @@ class _TaskListScreen extends State<TaskListScreen> {
                 color: Color.fromARGB(255, 32, 32, 32),
               ),
             ),
-            IconButton(
-              iconSize: 50,
-              icon: const Icon(Icons.add_box),
-              color: Colors.black,
-              onPressed: () {
-                addTask();
-              },
+            Row(
+              children: [
+                IconButton(
+                  iconSize: 50,
+                  icon: const Icon(Icons.add_box),
+                  color: Colors.black,
+                  onPressed: () {
+                    addTask();
+                  },
+                ),
+                IconButton(
+                  iconSize: 50,
+                  icon: const Icon(Icons.logout_rounded),
+                  color: Colors.black,
+                  onPressed: () {
+                    signOut(); // Call the signOut method
+                  },
+                ),
+              ],
             ),
           ],
         ),
       ),
       body: TaskList(
-        addTaskCallBack: addTask,
+        updateTaskCallBack: updateTask,
+        deleteTaskCallBack: deleteTask,
         tasks: tasks,
       ),
     );
@@ -89,29 +157,46 @@ class _TaskListScreen extends State<TaskListScreen> {
 }
 
 class Task {
-  final String title;
+  final String id;
+  String title;
   final Color tileColor;
+  String description;
+  bool status;
 
-  Task({required this.title, Color? tileColor})
-      : tileColor = tileColor ?? Colors.transparent;
+  Task({
+    required this.id,
+    required this.title,
+    Color? tileColor,
+    required this.description,
+    required this.status,
+  }) : tileColor = tileColor ?? Colors.transparent;
 
   factory Task.fromSnapshot(DocumentSnapshot snapshot) {
     Map<String, dynamic>? data = snapshot.data() as Map<String, dynamic>?;
     return Task(
+      id: snapshot.id,
       title: data?['title'] ?? 'No Title',
       tileColor: Color(data?['tileColor'] ?? Colors.transparent.value),
+      description: data?['description'] ?? '',
+      status: data?['status'] ?? false,
     );
   }
 }
 
 class TaskList extends StatefulWidget {
-  final VoidCallback addTaskCallBack;
+  final Function(Task) updateTaskCallBack;
+  final Function(Task) deleteTaskCallBack;
   final List<Task> tasks;
 
-  const TaskList(
-      {Key? key, required this.addTaskCallBack, required this.tasks});
+  const TaskList({
+    Key? key,
+    required this.updateTaskCallBack,
+    required this.deleteTaskCallBack,
+    required this.tasks,
+  });
 
   @override
+  // ignore: library_private_types_in_public_api
   _TaskListState createState() => _TaskListState();
 }
 
@@ -123,13 +208,9 @@ class _TaskListState extends State<TaskList> {
       itemBuilder: (context, index) {
         final task = widget.tasks[index];
         return TaskItem(
-          title: task.title,
-          tileColor: task.tileColor,
-          onRemove: () {
-            setState(() {
-              widget.tasks.removeAt(index);
-            });
-          },
+          task: task,
+          updateTaskCallBack: widget.updateTaskCallBack,
+          deleteTaskCallBack: widget.deleteTaskCallBack,
         );
       },
     );
@@ -137,15 +218,16 @@ class _TaskListState extends State<TaskList> {
 }
 
 class TaskItem extends StatefulWidget {
-  final String title;
-  final Color tileColor;
-  final VoidCallback onRemove;
+  final Task task;
+  final Function(Task) updateTaskCallBack;
+  final Function(Task) deleteTaskCallBack;
 
-  const TaskItem(
-      {Key? key,
-      required this.title,
-      required this.tileColor,
-      required this.onRemove});
+  const TaskItem({
+    Key? key,
+    required this.task,
+    required this.updateTaskCallBack,
+    required this.deleteTaskCallBack,
+  });
 
   @override
   State<TaskItem> createState() => _TaskItemState();
@@ -154,33 +236,30 @@ class TaskItem extends StatefulWidget {
 class _TaskItemState extends State<TaskItem> {
   Icon checked = const Icon(Icons.check_box_outline_blank_rounded);
   bool isChecked = false;
-  String status = 'incomplete';
-  bool isComplete = false;
+  late TextEditingController descriptionController;
 
-  void changeCheck() {
-    if (isChecked) {
-      setState(() {
-        checked = const Icon(Icons.check_box_outline_blank_rounded);
-      });
-    } else {
-      setState(() {
-        checked = const Icon(Icons.check_box_rounded);
-      });
-    }
-    isChecked = !isChecked;
+  @override
+  void initState() {
+    super.initState();
+    isChecked = widget.task.status;
+    updateCheckIcon();
+    descriptionController =
+        TextEditingController(text: widget.task.description);
   }
 
-  void changeStatus() {
-    if (isComplete) {
-      setState(() {
-        status = 'incomplete';
-      });
-    } else {
-      setState(() {
-        status = 'complete';
-      });
-    }
-    isComplete = !isComplete;
+  void updateCheckIcon() {
+    checked = isChecked
+        ? const Icon(Icons.check_box_rounded)
+        : const Icon(Icons.check_box_outline_blank_rounded);
+  }
+
+  void changeCheck() {
+    setState(() {
+      isChecked = !isChecked;
+      updateCheckIcon();
+    });
+    widget.task.status = isChecked;
+    widget.updateTaskCallBack(widget.task);
   }
 
   @override
@@ -188,14 +267,11 @@ class _TaskItemState extends State<TaskItem> {
     return ListTile(
       dense: true,
       visualDensity: const VisualDensity(vertical: 4),
-      tileColor: widget.tileColor,
+      tileColor: widget.task.tileColor,
       leading: IconButton(
         icon: checked,
-        onPressed: () {
-          changeStatus();
-          changeCheck();
-        },
-        color: const Color.fromARGB(255, 255, 255, 255),
+        onPressed: changeCheck,
+        color: const Color.fromARGB(255, 45, 214, 3),
         iconSize: 40,
       ),
       title: SizedBox(
@@ -203,33 +279,37 @@ class _TaskItemState extends State<TaskItem> {
         height: 50,
         child: TextFormField(
           style: const TextStyle(
-            color: Color.fromARGB(255, 255, 255, 255),
+            color: Color.fromARGB(255, 19, 19, 19),
             fontSize: 10,
           ),
-          initialValue: widget.title,
+          controller: descriptionController,
           maxLines: 3,
-          decoration: InputDecoration(
-            border: const OutlineInputBorder(
+          onChanged: (value) {
+            widget.task.description =
+                value; // Update description instead of title
+            widget.updateTaskCallBack(widget.task);
+          },
+          decoration: const InputDecoration(
+            border: OutlineInputBorder(
               borderSide: BorderSide(color: Colors.white, width: 1),
               borderRadius: BorderRadius.all(Radius.circular(5)),
             ),
-            labelText: status,
-            labelStyle: const TextStyle(
-              color: Color.fromARGB(255, 255, 255, 255),
+            labelText: 'Task Description', // Update the labelText
+            labelStyle: TextStyle(
+              color: Color.fromARGB(255, 19, 19, 19),
               fontSize: 15,
             ),
-            contentPadding:
-                const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+            contentPadding: EdgeInsets.symmetric(vertical: 10, horizontal: 10),
           ),
         ),
       ),
       trailing: IconButton(
         icon: const Icon(Icons.remove_circle_outline),
         onPressed: () {
-          widget.onRemove();
+          widget.deleteTaskCallBack(widget.task);
         },
         iconSize: 40,
-        color: const Color.fromARGB(255, 255, 255, 255),
+        color: const Color.fromARGB(255, 231, 10, 10),
         splashColor: const Color.fromARGB(255, 12, 9, 9),
       ),
     );

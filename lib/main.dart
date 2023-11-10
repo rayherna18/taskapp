@@ -31,14 +31,27 @@ class MyApp extends StatelessWidget {
     );
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primaryColor: Colors.white,
+        scaffoldBackgroundColor: const Color.fromARGB(255, 243, 243, 243),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color.fromARGB(255, 255, 255, 255),
+          foregroundColor: Color.fromARGB(255, 19, 19, 19),
+          elevation: 0,
+          iconTheme: IconThemeData(color: Color.fromARGB(255, 19, 19, 19)),
+        ),
+      ),
       title: 'Tasks',
-      home: AuthScreen(),
+      home: const AuthScreen(),
     );
   }
 }
 
 class AuthScreen extends StatefulWidget {
+  const AuthScreen({super.key});
+
   @override
+  // ignore: library_private_types_in_public_api
   _AuthScreenState createState() => _AuthScreenState();
 }
 
@@ -54,10 +67,11 @@ class _AuthScreenState extends State<AuthScreen> {
         password: _passwordController.text,
       );
       // Registration successful, navigate to the login page.
+      // ignore: use_build_context_synchronously
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => LoginScreen(),
+          builder: (context) => const RegisterScreen(),
         ),
       );
     } catch (e) {
@@ -72,10 +86,11 @@ class _AuthScreenState extends State<AuthScreen> {
         password: _passwordController.text,
       );
       // Login successful, navigate to the TaskListScreen.
+      // ignore: use_build_context_synchronously
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => TaskListScreen(title: 'Task List'),
+          builder: (context) => const TaskListScreen(title: 'Task List'),
         ),
       );
     } catch (e) {
@@ -86,43 +101,60 @@ class _AuthScreenState extends State<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Authentication')),
+      appBar: AppBar(title: const Text('Registration & Login')),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(
-              controller: _emailController,
-              decoration: InputDecoration(labelText: 'Email'),
+        padding: const EdgeInsets.all(32.0),
+        child:
+            Column(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+          TextField(
+            controller: _emailController,
+            decoration: const InputDecoration(
+              labelText: 'Email',
             ),
-            TextField(
-              controller: _passwordController,
-              decoration: InputDecoration(labelText: 'Password'),
-              obscureText: true,
-            ),
-            ElevatedButton(
-              onPressed: _register,
-              child: Text('Register'),
-            ),
-            ElevatedButton(
-              onPressed: _login,
-              child: Text('Login'),
-            ),
-          ],
-        ),
+            cursorColor: Colors.black,
+          ),
+          TextField(
+            controller: _passwordController,
+            decoration: const InputDecoration(labelText: 'Password'),
+            obscureText: true,
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: _register,
+                style: ButtonStyle(
+                  backgroundColor: MaterialStateProperty.all<Color>(
+                      const Color.fromARGB(255, 15, 15, 15)),
+                ),
+                child: const Text('Register'),
+              ),
+              const SizedBox(width: 32),
+              ElevatedButton(
+                onPressed: _login,
+                style: ButtonStyle(
+                  backgroundColor: MaterialStateProperty.all<Color>(
+                      const Color.fromARGB(255, 15, 15, 15)),
+                ),
+                child: const Text('Login'),
+              ),
+            ],
+          ),
+        ]),
       ),
     );
   }
 }
 
-class LoginScreen extends StatelessWidget {
+class RegisterScreen extends StatelessWidget {
+  const RegisterScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Login')),
-      body: Center(
-        child: Text('You are now logged in.'),
+      appBar: AppBar(title: const Text('Successful Registration')),
+      body: const Center(
+        child: Text('You are now registered.'),
       ),
     );
   }
