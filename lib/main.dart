@@ -115,7 +115,7 @@ class _AuthScreenState extends State<AuthScreen> {
             style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
-                fontFamily: 'Roboto',
+                fontFamily: 'Merriweather',
                 color: Colors.black),
           ),
           TextField(

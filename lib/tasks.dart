@@ -1,5 +1,3 @@
-// ignore_for_file: avoid_print
-
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -17,7 +15,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
-      home: TaskListScreen(title: 'Task List'),
+      home: TaskListScreen(title: 'Current Tasks'),
     );
   }
 }
@@ -64,9 +62,8 @@ class _TaskListScreen extends State<TaskListScreen> {
     try {
       User? user = auth.currentUser;
       if (user != null) {
-        // Optimistic Update
         Task newTask = Task(
-          id: DateTime.now().toString(), // Use a unique identifier
+          id: DateTime.now().toString(),
           title: 'Task Description',
           description: '',
           status: false,
@@ -99,23 +96,28 @@ class _TaskListScreen extends State<TaskListScreen> {
     }
   }
 
-  Future<void> updateTask(Task task) async {
+  Future<void> updateTask(Task task, VoidCallback onComplete) async {
     try {
       await tasksCollection.doc(task.id).update({
         'title': task.title,
         'description': task.description,
         'status': task.status,
       });
-      await fetchTasks(); // Wait for fetchTasks to complete
+      await fetchTasks();
+      onComplete();
     } catch (e) {
       print('Error updating task: $e');
     }
   }
 
-  Future<void> deleteTask(Task task) async {
+  Future<void> deleteTask(Task task, VoidCallback onComplete) async {
     try {
       await tasksCollection.doc(task.id).delete();
-      await fetchTasks();
+      setState(() {
+        tasks.removeWhere((element) => element.id == task.id);
+      });
+
+      onComplete();
     } catch (e) {
       print('Error deleting task: $e');
     }
@@ -125,7 +127,7 @@ class _TaskListScreen extends State<TaskListScreen> {
     try {
       await auth.signOut();
       // ignore: use_build_context_synchronously
-      Navigator.of(context).pop(); // Goes back to login screen
+      Navigator.of(context).pop(); // Goes back to the login screen
     } catch (e) {
       print('Error signing out: $e');
     }
@@ -170,8 +172,12 @@ class _TaskListScreen extends State<TaskListScreen> {
         ),
       ),
       body: TaskList(
-        updateTaskCallBack: updateTask,
-        deleteTaskCallBack: deleteTask,
+        updateTaskCallBack: (task, onComplete) {
+          updateTask(task, onComplete);
+        },
+        deleteTaskCallBack: (task, onComplete) {
+          deleteTask(task, onComplete);
+        },
         tasks: tasks,
       ),
     );
@@ -179,7 +185,7 @@ class _TaskListScreen extends State<TaskListScreen> {
 }
 
 class Task {
-  String id; // Change this to String
+  String id;
   String title;
   final Color tileColor;
   String description;
@@ -207,8 +213,8 @@ class Task {
 }
 
 class TaskList extends StatefulWidget {
-  final Function(Task) updateTaskCallBack;
-  final Function(Task) deleteTaskCallBack;
+  final Function(Task, VoidCallback) updateTaskCallBack;
+  final Function(Task, VoidCallback) deleteTaskCallBack;
   final List<Task> tasks;
 
   const TaskList({
@@ -219,7 +225,6 @@ class TaskList extends StatefulWidget {
   });
 
   @override
-  // ignore: library_private_types_in_public_api
   _TaskListState createState() => _TaskListState();
 }
 
@@ -232,8 +237,12 @@ class _TaskListState extends State<TaskList> {
         final task = widget.tasks[index];
         return TaskItem(
           task: task,
-          updateTaskCallBack: widget.updateTaskCallBack,
-          deleteTaskCallBack: widget.deleteTaskCallBack,
+          updateTaskCallBack: (onComplete) {
+            widget.updateTaskCallBack(task, onComplete);
+          },
+          deleteTaskCallBack: (onComplete) {
+            widget.deleteTaskCallBack(task, onComplete);
+          },
         );
       },
     );
@@ -242,8 +251,8 @@ class _TaskListState extends State<TaskList> {
 
 class TaskItem extends StatefulWidget {
   final Task task;
-  final Function(Task) updateTaskCallBack;
-  final Function(Task) deleteTaskCallBack;
+  final Function(VoidCallback) updateTaskCallBack;
+  final Function(VoidCallback) deleteTaskCallBack;
 
   const TaskItem({
     Key? key,
@@ -282,7 +291,7 @@ class _TaskItemState extends State<TaskItem> {
       updateCheckIcon();
     });
     widget.task.status = isChecked;
-    widget.updateTaskCallBack(widget.task);
+    widget.updateTaskCallBack(() {});
   }
 
   @override
@@ -308,16 +317,15 @@ class _TaskItemState extends State<TaskItem> {
           controller: descriptionController,
           maxLines: 3,
           onChanged: (value) {
-            widget.task.description =
-                value; // Update description instead of title
-            widget.updateTaskCallBack(widget.task);
+            widget.task.description = value;
+            widget.updateTaskCallBack(() {});
           },
           decoration: const InputDecoration(
             border: OutlineInputBorder(
               borderSide: BorderSide(color: Colors.white, width: 1),
               borderRadius: BorderRadius.all(Radius.circular(5)),
             ),
-            labelText: 'Task Description', // Update the labelText
+            labelText: 'Task Description',
             labelStyle: TextStyle(
               color: Color.fromARGB(255, 19, 19, 19),
               fontSize: 15,
@@ -329,7 +337,7 @@ class _TaskItemState extends State<TaskItem> {
       trailing: IconButton(
         icon: const Icon(Icons.remove_circle_outline),
         onPressed: () {
-          widget.deleteTaskCallBack(widget.task);
+          widget.deleteTaskCallBack(() {});
         },
         iconSize: 40,
         color: const Color.fromARGB(255, 231, 10, 10),
